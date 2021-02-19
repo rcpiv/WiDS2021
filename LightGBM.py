@@ -46,20 +46,15 @@ train_x_ds, a, train_y_ds, b = tts(train_x,train_y, test_size = .9, random_state
 
 #%% Set Up
 import lightgbm as lgb
-from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score
-
-ss = StandardScaler()
-train_x_ds = ss.fit_transform(train_x_ds)
-valid_x = ss.transform(valid_x)
 #%% Set Params
 params = {
     'learning_rate' : .3,
-    'boosting_type' : 'gbdt',
+    'boosting_type' : 'dart',
     'objective' : 'binary',
     'metric' : 'auc',
     'sub_feature' : .8,
-    'num_leaves' : 5000,
+    'num_leaves' : 50,
     'min_data' : 20,
     'max_depth' : 10,
     'feature_pre_filter': False,
@@ -68,14 +63,14 @@ params = {
 
 d_train = lgb.Dataset(train_x_ds, label=train_y_ds)
 #%% LGBM
-lgbm = lgb.cv(params, d_train, num_boost_round= 100, nfold=5, early_stopping_rounds= 10, seed = 42)
-print(np.max(lgbm['auc-mean'])) # 0.818
+lgbm = lgb.cv(params, d_train, num_boost_round= 100, nfold=5, seed = 42)
+print(np.max(lgbm['auc-mean'])) # 0.82
 
 #%% Parameter Tuning
 gridsearch_params = [
     (min_data, max_depth)
-    for min_data in range(43,46,1)
-    for max_depth in range (3,4)]
+    for min_data in range(52,55,1)
+    for max_depth in range (4,5,1)]
         
 max_AUC = float(0)
 best_params = None
@@ -101,17 +96,17 @@ for min_data, max_depth in gridsearch_params:
     print("\tAUC {}".format(mean_auc))
     if mean_auc > max_AUC:
         max_AUC = mean_auc
-        best_params = (3,min_data)
+        best_params = (max_depth,min_data)
 print("Best params: {}, {}, AUC: {}".format(best_params[0], best_params[1], max_AUC))
 
 #%% Set Params
-params['max_depth'] = 3
-params['min_data'] = 43
+params['max_depth'] = 4
+params['min_data'] = 53
 
 #%% Parameter Tuning
 max_AUC = float(0)
 best_params = None
-for num_leaves in range(2,22,1):
+for num_leaves in range(12,32,1):
     print("CV with num_leaves={}".format(num_leaves))
     # Update our parameters
     params['num_leaves'] = num_leaves
@@ -136,7 +131,7 @@ print("Best params: {}, AUC: {}".format(best_params, max_AUC))
 #%% Parameter Tuning
 max_AUC = float(0)
 best_params = None
-for colsample in range(31,52,1):
+for colsample in range(41,62,1):
     print("CV with colsample={}".format(colsample/100))
     # Update our parameters
     params['sub_feature'] = colsample/100
@@ -159,15 +154,15 @@ for colsample in range(31,52,1):
 print("Best params: {}, AUC: {}".format(best_params, max_AUC))
 
 #%% Set Param
-params['num_leaves'] = 8
-params['sub_feature'] = .44
+params['num_leaves'] = 16
+params['sub_feature'] = .52
 #%% Parameter Tuning
 max_AUC = float(0)
 best_params = None
-for eta in range(21,32,1):
+for eta in range(200,241,10):
     print("CV with eta={}".format(eta/1000))
     # Update our parameters
-    params['learning_rate'] = eta/100
+    params['learning_rate'] = eta/1000
     # Run CV
     cv_results = lgb.cv(
         params,
@@ -183,11 +178,11 @@ for eta in range(21,32,1):
     print("\tAUC {}".format(mean_auc))
     if mean_auc > max_AUC:
         max_AUC = mean_auc
-        best_params = (eta/100)
+        best_params = (eta/1000)
 print("Best params: {}, AUC: {}".format(best_params, max_AUC))
 
 #%% Set Params
-params['learning_rate'] = .025
+params['learning_rate'] = .22
 
 #%% Check Dart
 params['boosting_type'] = 'dart'
@@ -211,9 +206,9 @@ model = lgb.train(
     num_boost_round = 250,
     )
 
-preds = model.predict(train_x_ds)
-roc_auc_score(train_y_ds, preds)
-
+preds = model.predict(train_x)
+print(roc_auc_score(train_y, preds))
+# 0.84
 #%% Fit to whole data
 d_train2 = lgb.Dataset(train_x,label= train_y)
 d_valid = lgb.Dataset(valid_x, label=valid_y)
@@ -224,7 +219,8 @@ model2 = lgb.train(params,
 
 preds2= model2.predict(train_x)
 print(roc_auc_score(train_y, preds2))
-
-#%% Validate Overfit AF
-predsv = model2.predict(valid_x)
+# 0.866
+#%% Validate 
+predsv = model.predict(valid_x)
 print(roc_auc_score(valid_y,predsv))
+#0.838

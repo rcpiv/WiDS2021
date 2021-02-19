@@ -215,27 +215,3 @@ best_model = xgb.train(
     evals=[(dtest, "Test")]
 )
 
-#%% Preds
-preds = best_model.predict(dtest)
-from sklearn.metrics import roc_auc_score as auc
-
-auc(valid_y, preds)
-#%%
-# model = xgb.XGBClassifier(silent=False,
-#                     scale_pos_weight=1,
-#                     learning_rate=.1,
-#                     colsample_bytree=0.4,
-#                     subsample=.9,
-#                     objective='binary:logistic',
-#                     n_estimators = 1000,
-#                     reg_alpha = 0.3,
-#                     max_depth = 7,
-#                     gamma = 5
-#                     )
-  
-model.fit(train_x, train_y)
-preds = model.predict(valid_x)
-  
-from sklearn.metrics import roc_auc_score as auc
-auc_score = auc(valid_y, preds)
-print(auc_score)
