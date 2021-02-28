@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Feb 16 21:56:03 2021
+Created on Tue Feb 23 11:32:23 2021
 
 @author: Robby
 """
@@ -42,7 +42,7 @@ valid2_x = pd.get_dummies(valid2_x)
 
 #%% Downsample
 from sklearn.model_selection import train_test_split as tts
-train_x_ds, a, train_y_ds, b = tts(train_x,train_y, test_size = .9, random_state= 1234)
+train_x_ds, a, train_y_ds, b = tts(train2_x,train2_y, test_size = .9, random_state= 1234)
 
 #%% Set Up
 import lightgbm as lgb
@@ -69,7 +69,7 @@ print(np.max(lgbm['auc-mean'])) # 0.82
 #%% Parameter Tuning
 gridsearch_params = [
     (min_data, max_depth)
-    for min_data in range(52,55,1)
+    for min_data in range(71,92,2)
     for max_depth in range (4,5,1)]
         
 max_AUC = float(0)
@@ -101,12 +101,12 @@ print("Best params: {}, {}, AUC: {}".format(best_params[0], best_params[1], max_
 
 #%% Set Params
 params['max_depth'] = 4
-params['min_data'] = 53
+params['min_data'] = 71
 
 #%% Parameter Tuning
 max_AUC = float(0)
 best_params = None
-for num_leaves in range(12,32,1):
+for num_leaves in range(10,30,1):
     print("CV with num_leaves={}".format(num_leaves))
     # Update our parameters
     params['num_leaves'] = num_leaves
@@ -131,7 +131,7 @@ print("Best params: {}, AUC: {}".format(best_params, max_AUC))
 #%% Parameter Tuning
 max_AUC = float(0)
 best_params = None
-for colsample in range(41,62,1):
+for colsample in range(71,92,1):
     print("CV with colsample={}".format(colsample/100))
     # Update our parameters
     params['sub_feature'] = colsample/100
@@ -155,11 +155,11 @@ print("Best params: {}, AUC: {}".format(best_params, max_AUC))
 
 #%% Set Param
 params['num_leaves'] = 16
-params['sub_feature'] = .52
+params['sub_feature'] = .81
 #%% Parameter Tuning
 max_AUC = float(0)
 best_params = None
-for eta in range(200,241,10):
+for eta in range(160,261,10):
     print("CV with eta={}".format(eta/1000))
     # Update our parameters
     params['learning_rate'] = eta/1000
@@ -182,45 +182,47 @@ for eta in range(200,241,10):
 print("Best params: {}, AUC: {}".format(best_params, max_AUC))
 
 #%% Set Params
-params['learning_rate'] = .22
-
-#%% Check Dart
-params['boosting_type'] = 'dart'
-cv_results = lgb.cv(
-       params,
-       d_train,
-       num_boost_round = 250,
-       seed=42,
-       nfold=5,
-       metrics='auc'
-       )
-
-# Update best MAE
-mean_auc = np.max(cv_results['auc-mean'])
-print("\tAUC {}".format(mean_auc))
+params['learning_rate'] = .21
 
 #%% Best Model
 model = lgb.train(
     params,
     d_train,
-    num_boost_round = 250,
+    num_boost_round = 999,
     )
 
-preds = model.predict(train_x)
-print(roc_auc_score(train_y, preds))
-# 0.84
+preds = model.predict(train2_x)
+print(roc_auc_score(train2_y, preds))
+
 #%% Fit to whole data
-d_train2 = lgb.Dataset(train_x,label= train_y)
-d_valid = lgb.Dataset(valid_x, label=valid_y)
+d_train2 = lgb.Dataset(train2_x,label= train2_y)
+d_valid = lgb.Dataset(valid2_x, label=valid2_y)
 
 model2 = lgb.train(params,
                    d_train2,
-                   num_boost_round= 250)
+                   num_boost_round= 999)
 
-preds2= model2.predict(train_x)
-print(roc_auc_score(train_y, preds2))
-# 0.866
+preds2= model2.predict(train2_x)
+print(roc_auc_score(train2_y, preds2))
+# 0.896
 #%% Validate 
-predsv = model2.predict(valid_x)
-print(roc_auc_score(valid_y,predsv))
-#0.838
+predsv = model2.predict(valid2_x)
+print(roc_auc_score(valid2_y,predsv))
+#0.854
+
+#%% Test Set
+test = pd.read_csv(r"C:\Users\Robby\Desktop\IAA\Personal Projects\WiDS\unlabeled.csv").drop('Unnamed: 0', axis = 1)
+test2 = pd.read_csv(r"C:\Users\Robby\Desktop\IAA\Personal Projects\WiDS\unlabeled2.csv").drop('Unnamed: 0', axis = 1)
+
+eid = test2.encounter_id
+test2 = test2.drop('encounter_id', axis=1)
+
+test = pd.get_dummies(test)
+test2 = pd.get_dummies(test2)
+
+preds_t = model2.predict(test2)
+
+pred_dict = {"encounter_id":eid, "diabetes_mellitus": preds_t}
+
+pred_df = pd.DataFrame.from_dict(pred_dict)
+pred_df.to_csv(r'LGBM_preds.csv', index=False)

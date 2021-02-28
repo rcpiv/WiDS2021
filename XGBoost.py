@@ -9,7 +9,7 @@ Created on Thu Feb  4 15:15:25 2021
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-
+from sklearn.metrics import roc_auc_score
 #%% Load in Data
 import os
 os.chdir(r"C:\Users\Robby\Desktop\IAA\Personal Projects\WiDS")
@@ -197,21 +197,44 @@ print("Best params: {}, AUC: {}".format(best_params, max_auc))
 params['eta'] = .2
 
 #%% Test
-model = xgb.train(
+model_xgb = xgb.train(
     params,
     dtrain,
     num_boost_round=num_boost_rounds,
     evals=[(dtest, "Test")],
     early_stopping_rounds=10)
 
-print("Best AUC: {:.2f} in {} rounds".format(model.best_score, model.best_iteration+1))
+print("Best AUC: {:.2f} in {} rounds".format(model_xgb.best_score, model_xgb.best_iteration+1))
 
 #%% Best Model
-num_boost_round = model.best_iteration + 1
-best_model = xgb.train(
+num_boost_round = model_xgb.best_iteration + 1
+model_xgb = xgb.train(
     params,
     dtrain,
     num_boost_round=num_boost_round,
     evals=[(dtest, "Test")]
 )
+
+preds_xgb = model_xgb.predict(dtest)
+print(roc_auc_score(valid_y, preds_xgb))
+# 0.8525
+
+#%% Test Set
+test = pd.read_csv(r"C:\Users\Robby\Desktop\IAA\Personal Projects\WiDS\unlabeled.csv").drop('Unnamed: 0', axis = 1)
+test2 = pd.read_csv(r"C:\Users\Robby\Desktop\IAA\Personal Projects\WiDS\unlabeled2.csv").drop('Unnamed: 0', axis = 1)
+
+eid = test.encounter_id
+test = test.drop('encounter_id', axis=1)
+
+test = pd.get_dummies(test)
+test2 = pd.get_dummies(test2)
+
+dtest2 = xgb.DMatrix(test)
+
+preds_t = model_xgb.predict(dtest2)
+
+pred_dict = {"encounter_id":eid, "diabetes_mellitus": preds_t}
+
+pred_df = pd.DataFrame.from_dict(pred_dict)
+pred_df.to_csv(r'XGB_preds.csv', index=False)
 
